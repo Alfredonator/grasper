@@ -9,9 +9,9 @@ import geometry_msgs.msg
 def add_table(robot, scene):
     p = geometry_msgs.msg.PoseStamped()
     p.header.frame_id = robot.get_planning_frame()
-    p.pose.position.x = 0.17
+    p.pose.position.x = 0.23
     p.pose.position.y = -0.05
-    p.pose.position.z = -0.015
+    p.pose.position.z = -0.017
 
     # check this site for quaternion orientations https://quaternions.online/
     p.pose.orientation.x = 0.707
@@ -25,7 +25,7 @@ def add_fake_mf(robot, scene):
     p.header.frame_id = robot.get_planning_frame()
     p.pose.position.x = 0.40
     p.pose.position.y = 0.15
-    p.pose.position.z = 0.025
+    p.pose.position.z = 0.015
 
     # check this site for quaternion orientations https://quaternions.online/
     p.pose.orientation.x = 0.0
