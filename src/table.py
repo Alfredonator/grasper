@@ -9,8 +9,8 @@ import geometry_msgs.msg
 def add_table(robot, scene):
     p = geometry_msgs.msg.PoseStamped()
     p.header.frame_id = robot.get_planning_frame()
-    p.pose.position.x = 0.23
-    p.pose.position.y = -0.05
+    p.pose.position.x = 0.21
+    p.pose.position.y = -0.075
     p.pose.position.z = -0.017
 
     # check this site for quaternion orientations https://quaternions.online/
@@ -20,20 +20,6 @@ def add_table(robot, scene):
     p.pose.orientation.w = 0.0
     scene.add_box("table", p, (0.85, 1.20, 0.03))
 
-def add_fake_mf(robot, scene):
-    p = geometry_msgs.msg.PoseStamped()
-    p.header.frame_id = robot.get_planning_frame()
-    p.pose.position.x = 0.40
-    p.pose.position.y = 0.15
-    p.pose.position.z = 0.015
-
-    # check this site for quaternion orientations https://quaternions.online/
-    p.pose.orientation.x = 0.0
-    p.pose.orientation.y = 0.0
-    p.pose.orientation.z = 0.0
-    p.pose.orientation.w = 0.0
-    scene.add_box("mf", p, (0.03, 0.03, 0.03))
-
 
 def add_robot_environment():
     scene = moveit_commander.PlanningSceneInterface()
@@ -41,9 +27,6 @@ def add_robot_environment():
     rospy.sleep(2)
 
     add_table(robot, scene)
-
-    add_fake_mf(robot, scene)
-
 
 
 def main(args):

@@ -22,6 +22,7 @@ class Brain:
         self._scene = moveit_commander.PlanningSceneInterface()
         self.robot = moveit_commander.RobotCommander()
         self.arm_group = moveit_commander.MoveGroupCommander("edo")
+        self.arm_group.allow_replanning(True)
         self.ee_group = moveit_commander.MoveGroupCommander("edo_gripper")
         self.pub_grip = rospy.Publisher('open_gripper', Bool, queue_size=10)
         self.operate()
@@ -78,35 +79,35 @@ class Brain:
             robot_poses = grasp_pipeline_fn(object_name)
 
             self.open_gripper()
-            rospy.sleep(1)
 
+            rospy.loginfo("Going to pre-grasp position")
             self.go_pose(robot_poses.pre_grasp)
+
+            rospy.loginfo("Going to grasp position")
             self.go_pose(robot_poses.grasp)
-
-            self.close_gripper()
             rospy.sleep(1)
-            #self.attach_object_ee(object_name)
+            self.attach_object_ee(object_name)
+            rospy.loginfo("Closing the grip")
+            self.close_gripper()
 
+            rospy.loginfo("Going to pre-grasp position")
             self.go_pose(robot_poses.pre_grasp)
-            self.go_home_position()
+            # self.go_home_position()
 
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
 
     def place_object_in_bucket(self, object_name):
         box_pose = self._get_box_pose(self._create_box_name_from_object_name(object_name))
-        print("box pose before z increase: ", box_pose)
+        self.arm_group.set_goal_orientation_tolerance(0.5)
         box_pose.position.z += 0.30  # to place gripper 25cm above
         box_pose.orientation.w = 0.017422152127
         box_pose.orientation.x = 0.990489039778
         box_pose.orientation.y = 0.133863815194
         box_pose.orientation.z = -0.0266159665721
-        print("box pose AFTER z increase: ", box_pose)
 
         self.go_pose(box_pose)
-
         self.open_gripper()
-        rospy.sleep(1)
         self.detach_object_ee(object_name)
 
         self.go_home_position()
@@ -147,7 +148,9 @@ class Brain:
         self.ee_group.attach_object(object_name, touch_links=links)
 
     def detach_object_ee(self, object_name):
-        self.ee_group.detach_object(object_name)
+        #self.ee_group.detach_object(object_name)
+        self._scene.remove_attached_object('edo_gripper_ee', name=object_name)
+        self._scene.remove_world_object(object_name)
 
 
 if __name__ == '__main__':
@@ -161,33 +164,3 @@ if __name__ == '__main__':
         print("Shutting down")
 
     moveit_commander.roscpp_shutdown()
-
-
-"""
-    def pick_object(self, x, y, z):
-        rospy.loginfo("Picking up object from coordinates %s, %s, %s", x, y, z)
-        self.open_gripper()
-        self.move_arm(x, y, z + 0.20, 0.017422152127, 0.990489039778, 0.133863815194, -0.0266159665721)
-        self.move_arm(x, y, z + 0.11, 0.017422152127, 0.990489039778, 0.133863815194, -0.0266159665721)
-        self.close_gripper()
-        self.move_arm(0.18, 0.32, 0.28, 0.017422152127, 0.990489039778, 0.133863815194, -0.0266159665721)
-        self.open_gripper()
-        # self.home_position()
-        return 0
-
-        def move_arm(self, p_x, p_y, p_z, o_w, o_x, o_y, o_z):
-            pose = self.create_pose(p_x, p_y, p_z, o_w, o_x, o_y, o_z)
-            self.arm_group.set_pose_target(pose)
-            self.arm_group.go()
-
-        def create_pose(self, p_x, p_y, p_z, o_w, o_x, o_y, o_z):
-            pose_target = geometry_msgs.msg.Pose()
-            pose_target.orientation.w = o_w
-            pose_target.orientation.x = o_x
-            pose_target.orientation.y = o_y
-            pose_target.orientation.z = o_z
-            pose_target.position.x = p_x
-            pose_target.position.y = p_y
-            pose_target.position.z = p_z
-            return pose_target
-        """
