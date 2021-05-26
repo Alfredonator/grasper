@@ -40,11 +40,11 @@ class Brain:
             while True:
                 object_to_pickup = self.select_object_to_pickup()
                 if object_to_pickup:
-                    if True: #self._is_box_for_given_object_present(object_to_pickup):
+                    if self._is_box_for_given_object_present(object_to_pickup):
                         print("picking up ", object_to_pickup)
                         self.pick_object_by_name(object_to_pickup)
-                        object_to_pickup = "Potato"
                         self.place_object_in_bucket(object_to_pickup)
+
                     else:
                         print("No box for present for " + object_to_pickup + ", aborting")
                 else:
@@ -73,38 +73,25 @@ class Brain:
         return planning_scene_object_list.__contains__(self._create_box_name_from_object_name(object_name))
 
     def pick_object_by_name(self, object_name):
-        rospy.wait_for_service('grasp_pipeline')
-        try:
-            grasp_pipeline_fn = rospy.ServiceProxy('grasp_pipeline', Grasp)
-            robot_poses = grasp_pipeline_fn(object_name)
+        robot_poses = self._get_grasp_poses_for_object(object_name)
 
-            self.open_gripper()
+        self.open_gripper()
 
-            rospy.loginfo("Going to pre-grasp position")
-            self.go_pose(robot_poses.pre_grasp)
+        rospy.loginfo("Going to pre-grasp position")
+        self.go_pose(robot_poses.pre_grasp)
 
-            rospy.loginfo("Going to grasp position")
-            self.go_pose(robot_poses.grasp)
-            rospy.sleep(1)
-            self.attach_object_ee(object_name)
-            rospy.loginfo("Closing the grip")
-            self.close_gripper()
+        rospy.loginfo("Going to grasp position")
+        self.go_pose(robot_poses.grasp)
+        rospy.sleep(1)
+        self.attach_object_ee(object_name)
+        rospy.loginfo("Closing the grip")
+        self.close_gripper()
 
-            rospy.loginfo("Going to pre-grasp position")
-            self.go_pose(robot_poses.pre_grasp)
-            # self.go_home_position()
-
-        except rospy.ServiceException as e:
-            print("Service call failed: %s" % e)
+        rospy.loginfo("Going to pre-grasp position")
+        self.go_pose(robot_poses.pre_grasp)
 
     def place_object_in_bucket(self, object_name):
         box_pose = self._get_box_pose(self._create_box_name_from_object_name(object_name))
-        self.arm_group.set_goal_orientation_tolerance(0.5)
-        box_pose.position.z += 0.30  # to place gripper 25cm above
-        box_pose.orientation.w = 0.017422152127
-        box_pose.orientation.x = 0.990489039778
-        box_pose.orientation.y = 0.133863815194
-        box_pose.orientation.z = -0.0266159665721
 
         self.go_pose(box_pose)
         self.open_gripper()
@@ -114,17 +101,47 @@ class Brain:
         return
 
     def _get_box_pose(self, box_name):
+        box_pose = geometry_msgs.msg.PoseStamped()
+        box_pose.pose = self._scene.get_object_poses([box_name])[box_name]
+        box_pose.header.frame_id = self.robot.get_planning_frame()
+        box_pose.pose.position.z += 0.16  # to place 30cm above
 
-        return self._scene.get_object_poses([box_name])[box_name]
+        small_box_name = box_name + "_grasp"
+        small_box_pose = box_pose
+        print("small box pose")
+        print(small_box_pose)
+
+        self._scene.add_box(small_box_name, small_box_pose, size=(0.03, 0.03, 0.03))
+        rospy.sleep(3)
+        grasp_pose = self._get_grasp_poses_for_object(small_box_name)
+        if grasp_pose is None:
+            raise Exception('grasp_pose is null')
+
+        self._scene.remove_world_object(small_box_name)
+
+        return grasp_pose.grasp
+
+    @staticmethod
+    def _get_grasp_poses_for_object(object_name):
+        rospy.wait_for_service('grasp_pipeline')
+        try:
+            grasp_pipeline_fn = rospy.ServiceProxy('grasp_pipeline', Grasp)
+            robot_poses = grasp_pipeline_fn(object_name)
+            print("after grasp pipeline")
+            print(robot_poses)
+            if robot_poses is None:
+                raise Exception('robot poses is null')
+            return robot_poses
+        except rospy.ServiceException as e:
+            print("Service call failed: %s" % e)
 
     @staticmethod
     def _create_box_name_from_object_name(object_name):
         return "Box_" + object_name
 
     def go_pose(self, pose):
-        #self.arm_group.set_joint_value_target(pose, "edo_link_ee", True)
-        # self.arm_group.set_pose_target(pose)
-        #self.arm_group.set_planning_time(10)
+        self.arm_group.set_joint_value_target(pose, "edo_link_ee", True)
+        #self.arm_group.set_pose_target(pose)
         self.arm_group.go(pose)
 
     def close_gripper(self):
@@ -138,20 +155,12 @@ class Brain:
         self.arm_group.go()
 
     def attach_object_ee(self, object_name):
-        links = [
-            "edo_gripper_left_base_link",
-            "edo_gripper_right_base_link",
-            "edo_gripper_right_finger_link",
-            "edo_gripper_left_finger_link",
-        ]
-
-        self.ee_group.attach_object(object_name, touch_links=links)
+        touch_links = self.robot.get_link_names(group="edo_gripper")
+        self._scene.attach_box("edo_gripper_link", object_name, touch_links=touch_links)
 
     def detach_object_ee(self, object_name):
-        #self.ee_group.detach_object(object_name)
-        self._scene.remove_attached_object('edo_gripper_ee', name=object_name)
+        self._scene.remove_attached_object("edo_gripper_link", name=object_name)
         self._scene.remove_world_object(object_name)
-
 
 if __name__ == '__main__':
     rospy.init_node('ball_grasper', anonymous=True)
