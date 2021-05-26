@@ -73,38 +73,27 @@ class Brain:
         return planning_scene_object_list.__contains__(self._create_box_name_from_object_name(object_name))
 
     def pick_object_by_name(self, object_name):
-        rospy.wait_for_service('grasp_pipeline')
-        try:
-            grasp_pipeline_fn = rospy.ServiceProxy('grasp_pipeline', Grasp)
-            robot_poses = grasp_pipeline_fn(object_name)
+        robot_poses = self._get_grasp_poses_for_object(object_name)
 
-            self.open_gripper()
+        self.open_gripper()
 
-            rospy.loginfo("Going to pre-grasp position")
-            self.go_pose(robot_poses.pre_grasp)
+        rospy.loginfo("Going to pre-grasp position")
+        self.go_pose(robot_poses.pre_grasp)
 
-            rospy.loginfo("Going to grasp position")
-            self.go_pose(robot_poses.grasp)
-            rospy.sleep(1)
-            self.attach_object_ee(object_name)
-            rospy.loginfo("Closing the grip")
-            self.close_gripper()
+        rospy.loginfo("Going to grasp position")
+        self.go_pose(robot_poses.grasp)
+        rospy.sleep(1)
+        self.attach_object_ee(object_name)
+        rospy.loginfo("Closing the grip")
+        self.close_gripper()
 
-            rospy.loginfo("Going to pre-grasp position")
-            self.go_pose(robot_poses.pre_grasp)
-            # self.go_home_position()
-
-        except rospy.ServiceException as e:
-            print("Service call failed: %s" % e)
+        rospy.loginfo("Going to pre-grasp position")
+        self.go_pose(robot_poses.pre_grasp)
 
     def place_object_in_bucket(self, object_name):
         box_pose = self._get_box_pose(self._create_box_name_from_object_name(object_name))
+
         self.arm_group.set_goal_orientation_tolerance(0.5)
-        box_pose.position.z += 0.30  # to place gripper 25cm above
-        box_pose.orientation.w = 0.017422152127
-        box_pose.orientation.x = 0.990489039778
-        box_pose.orientation.y = 0.133863815194
-        box_pose.orientation.z = -0.0266159665721
 
         self.go_pose(box_pose)
         self.open_gripper()
@@ -114,17 +103,47 @@ class Brain:
         return
 
     def _get_box_pose(self, box_name):
+        box_pose = self._scene.get_object_poses([box_name])[box_name]
+        box_pose.position.z += 0.30  # to place 30cm above
 
-        return self._scene.get_object_poses([box_name])[box_name]
+        # TODO: possibly don't even need to reset orientation here
+        box_pose.orientation.w = 0
+        box_pose.orientation.x = 0
+        box_pose.orientation.y = 0
+        box_pose.orientation.z = 0
+
+        small_box_name = box_name + "_grasp"
+        small_box_pose = box_pose
+
+        self._scene.add_box(small_box_name, small_box_pose, size=(0.03, 0.03, 0.03))
+        grasp_pose = self._get_grasp_poses_for_object(small_box_name).grasp
+        self._scene.remove_world_object(small_box_name)
+
+        return grasp_pose
+
+    @staticmethod
+    def _get_grasp_poses_for_object(object_name):
+        rospy.wait_for_service('grasp_pipeline')
+        robot_poses = None
+
+        try:
+            grasp_pipeline_fn = rospy.ServiceProxy('grasp_pipeline', Grasp)
+            robot_poses = grasp_pipeline_fn(object_name)
+        except rospy.ServiceException as e:
+            print("Service call failed: %s" % e)
+
+        return robot_poses
 
     @staticmethod
     def _create_box_name_from_object_name(object_name):
         return "Box_" + object_name
 
+    """
+    --------------------------------------------------------
+    Manipulation methods region
+    --------------------------------------------------------
+    """
     def go_pose(self, pose):
-        #self.arm_group.set_joint_value_target(pose, "edo_link_ee", True)
-        # self.arm_group.set_pose_target(pose)
-        #self.arm_group.set_planning_time(10)
         self.arm_group.go(pose)
 
     def close_gripper(self):
@@ -148,7 +167,6 @@ class Brain:
         self.ee_group.attach_object(object_name, touch_links=links)
 
     def detach_object_ee(self, object_name):
-        #self.ee_group.detach_object(object_name)
         self._scene.remove_attached_object('edo_gripper_ee', name=object_name)
         self._scene.remove_world_object(object_name)
 
