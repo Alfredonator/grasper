@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>grasper</name>
+  <name>decision_making_pipeline</name>
   <version>0.0.0</version>
-  <description>The grasper package</description>
+  <description>The decicison making pipeline package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->

@@ -163,8 +163,8 @@ class Brain:
         self._scene.remove_world_object(object_name)
 
 if __name__ == '__main__':
-    rospy.init_node('ball_grasper', anonymous=True)
-    rospy.loginfo("Starting ball grasper node")
+    rospy.init_node('decision_making', anonymous=True)
+    rospy.loginfo("Starting decision_making node")
     moveit_commander.roscpp_initialize(sys.argv)
     try:
         Brain()
